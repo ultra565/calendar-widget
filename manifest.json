@@ -1,0 +1,23 @@
+{
+  "name": "일정 위젯 - 원주시 투자행정팀",
+  "short_name": "일정위젯",
+  "description": "구글 캘린더 연동 일정 위젯",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#0f0f1a",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

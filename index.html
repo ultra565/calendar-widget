@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0f0f1a">
+<title>📅 일정 위젯</title>
+<link rel="manifest" href="manifest.json">
+
+<!-- Google Identity Services -->
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:       #0f0f1a;
+  --surface:  #181828;
+  --card:     #1e1e32;
+  --border:   #2a2a44;
+  --accent:   #6c8fff;
+  --accent2:  #a78bfa;
+  --text:     #e8e8f8;
+  --sub:      #7878a8;
+  --urgent:   #ff6b7a;
+  --soon:     #ffb347;
+  --ok:       #4ade80;
+  --radius:   14px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  font-family: 'Noto Sans KR', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── 배경 효과 ── */
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 10%, rgba(108,143,255,.12) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 50% at 80% 80%, rgba(167,139,250,.08) 0%, transparent 60%);
+  pointer-events:none;
+}
+
+/* ── 헤더 ── */
+header {
+  position: sticky; top:0; z-index:100;
+  background: rgba(15,15,26,.9);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 18px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.header-left { display:flex; align-items:center; gap:10px; }
+
+.logo {
+  width:36px; height:36px; border-radius:10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+}
+
+.header-title { font-size:16px; font-weight:700; letter-spacing:-.3px; }
+.header-sub   { font-size:11px; color:var(--sub); margin-top:1px; }
+
+.header-right { display:flex; gap:8px; }
+
+.icon-btn {
+  width:36px; height:36px; border-radius:10px;
+  background: var(--card); border: 1px solid var(--border);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; cursor:pointer; transition: all .2s;
+}
+.icon-btn:active { transform:scale(.92); background: var(--border); }
+
+/* ── 로그인 화면 ── */
+#login-screen {
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  min-height: calc(100vh - 70px);
+  padding: 32px 24px; text-align:center; gap:24px;
+}
+
+.login-icon {
+  width:80px; height:80px; border-radius:24px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  display:flex; align-items:center; justify-content:center;
+  font-size:40px;
+  box-shadow: 0 0 40px rgba(108,143,255,.3);
+}
+
+.login-title { font-size:22px; font-weight:700; }
+.login-desc  { font-size:14px; color:var(--sub); line-height:1.6; }
+
+.google-btn {
+  display:flex; align-items:center; gap:12px;
+  background: white; color: #1a1a1a;
+  border: none; border-radius:12px;
+  padding: 14px 28px; font-size:15px; font-weight:600;
+  cursor:pointer; transition: all .2s;
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
+.google-btn:active { transform:scale(.96); }
+.google-btn img { width:22px; }
+
+.setup-hint {
+  font-size:12px; color:var(--sub); line-height:1.7;
+  background: var(--card); border:1px solid var(--border);
+  border-radius:12px; padding:16px 20px; text-align:left; width:100%;
+  max-width:360px;
+}
+.setup-hint strong { color:var(--accent); }
+
+/* ── 메인 ── */
+#main-screen { display:none; padding-bottom:32px; }
+
+/* ── 날짜 배너 ── */
+.date-banner {
+  margin:16px 14px 8px;
+  background: linear-gradient(135deg, rgba(108,143,255,.15), rgba(167,139,250,.1));
+  border:1px solid rgba(108,143,255,.25);
+  border-radius:16px; padding:16px 18px;
+  display:flex; align-items:center; justify-content:space-between;
+}
+
+.date-today { font-family:'DM Mono', monospace; font-size:13px; color:var(--accent); }
+.date-full  { font-size:20px; font-weight:700; margin-top:2px; }
+.date-time  { font-family:'DM Mono', monospace; font-size:28px; font-weight:500;
+              color:var(--accent); letter-spacing:1px; }
+
+/* ── 섹션 헤더 ── */
+.section-header {
+  display:flex; align-items:center; gap:8px;
+  padding: 16px 18px 8px;
+}
+.section-dot {
+  width:8px; height:8px; border-radius:50%;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+}
+.section-label { font-size:12px; font-weight:700; color:var(--sub);
+                 letter-spacing:.8px; text-transform:uppercase; }
+.section-count { margin-left:auto; font-size:11px; color:var(--sub);
+                 background:var(--card); border:1px solid var(--border);
+                 border-radius:20px; padding:2px 8px; }
+
+/* ── 이벤트 카드 ── */
+.event-card {
+  margin: 5px 14px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display:flex; gap:12px; align-items:flex-start;
+  transition: all .15s;
+  position: relative; overflow:hidden;
+}
+.event-card::before {
+  content:'';
+  position:absolute; left:0; top:0; bottom:0;
+  width:3px;
+  border-radius: 4px 0 0 4px;
+  background: var(--accent);
+}
+.event-card.urgent::before { background: var(--urgent); }
+.event-card.soon::before   { background: var(--soon);   }
+.event-card.ongoing::before{ background: var(--ok);    }
+.event-card:active { transform:scale(.98); }
+
+.event-icon {
+  width:40px; height:40px; border-radius:11px; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center; font-size:18px;
+  background: rgba(108,143,255,.12);
+}
+.event-card.urgent .event-icon { background: rgba(255,107,122,.12); }
+.event-card.soon   .event-icon { background: rgba(255,179,71,.12);  }
+.event-card.ongoing .event-icon { background: rgba(74,222,128,.12); }
+
+.event-body { flex:1; min-width:0; }
+.event-title {
+  font-size:14px; font-weight:600; line-height:1.3;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.event-time {
+  font-family:'DM Mono', monospace; font-size:12px;
+  color:var(--sub); margin-top:4px;
+}
+.event-badge {
+  display:inline-block; font-size:10px; font-weight:700;
+  border-radius:6px; padding:2px 7px; margin-top:6px;
+  letter-spacing:.3px;
+}
+.badge-urgent { background:rgba(255,107,122,.2); color:var(--urgent); }
+.badge-soon   { background:rgba(255,179,71,.2);  color:var(--soon);   }
+.badge-ongoing{ background:rgba(74,222,128,.2);  color:var(--ok);    }
+
+.event-loc {
+  font-size:11px; color:var(--sub); margin-top:3px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.event-cal {
+  font-size:10px; color:var(--accent); margin-top:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+
+/* ── 비어있음 ── */
+.empty {
+  text-align:center; padding:32px 24px; color:var(--sub); font-size:14px;
+}
+
+/* ── 상태바 ── */
+#status-bar {
+  margin:8px 14px 0;
+  font-size:11px; color:var(--sub); text-align:right;
+  font-family:'DM Mono', monospace;
+}
+
+/* ── 로딩 ── */
+.spinner {
+  width:20px; height:20px; border-radius:50%;
+  border:2px solid var(--border);
+  border-top-color:var(--accent);
+  animation:spin .7s linear infinite;
+  display:inline-block; vertical-align:middle; margin-right:6px;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── 알림 배너 ── */
+#notif-banner {
+  display:none; position:fixed; bottom:20px; left:14px; right:14px; z-index:200;
+  background: linear-gradient(135deg, var(--urgent), #ff4d6d);
+  border-radius:14px; padding:14px 18px;
+  box-shadow:0 8px 30px rgba(255,107,122,.35);
+  animation:slideUp .3s ease;
+}
+@keyframes slideUp { from{transform:translateY(20px);opacity:0} to{transform:translateY(0);opacity:1} }
+#notif-banner .nb-title { font-size:15px; font-weight:700; }
+#notif-banner .nb-body  { font-size:12px; opacity:.85; margin-top:3px; }
+#notif-banner .nb-close {
+  position:absolute; top:10px; right:14px;
+  background:none; border:none; color:white;
+  font-size:18px; cursor:pointer;
+}
+</style>
+</head>
+<body>
+
+<!-- ══ 헤더 ══ -->
+<header>
+  <div class="header-left">
+    <div class="logo">📅</div>
+    <div>
+      <div class="header-title">일정 위젯</div>
+      <div class="header-sub" id="header-sub">원주시 투자행정팀</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="icon-btn" onclick="refreshEvents()" title="새로고침">↻</div>
+    <div class="icon-btn" onclick="signOut()" title="로그아웃">⏻</div>
+  </div>
+</header>
+
+<!-- ══ 로그인 화면 ══ -->
+<div id="login-screen">
+  <div class="login-icon">📅</div>
+  <div>
+    <div class="login-title">구글 캘린더 위젯</div>
+    <div class="login-desc" style="margin-top:8px">구글 계정으로 로그인하면<br>일정을 실시간으로 확인하고<br>30분 전 알림을 받을 수 있습니다</div>
+  </div>
+
+  <button class="google-btn" onclick="startSignIn()">
+    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+    Google 계정으로 로그인
+  </button>
+
+  <div class="setup-hint">
+    <strong>⚙️ 최초 설정 필요</strong><br>
+    이 앱을 처음 사용하려면<br>
+    1. Google Cloud Console에서<br>
+    &nbsp;&nbsp;&nbsp;<strong>OAuth 클라이언트 ID</strong> 생성<br>
+    &nbsp;&nbsp;&nbsp;(유형: <strong>웹 애플리케이션</strong>)<br>
+    2. 승인된 출처에 이 페이지 주소 추가<br>
+    3. 아래 CLIENT_ID 값 수정<br><br>
+    <strong>⚠️ 아직 CLIENT_ID가 설정되지 않았으면<br>로그인 버튼이 작동하지 않습니다.</strong>
+  </div>
+</div>
+
+<!-- ══ 메인 화면 ══ -->
+<div id="main-screen">
+  <div class="date-banner">
+    <div>
+      <div class="date-today" id="day-label">오늘</div>
+      <div class="date-full"  id="date-full">--</div>
+    </div>
+    <div class="date-time" id="clock">--:--</div>
+  </div>
+
+  <div id="status-bar">⏳ 로딩 중...</div>
+  <div id="event-list"></div>
+</div>
+
+<!-- ══ 알림 배너 ══ -->
+<div id="notif-banner">
+  <div class="nb-title" id="nb-title">⏰ 30분 후 일정</div>
+  <div class="nb-body"  id="nb-body">일정 제목</div>
+  <button class="nb-close" onclick="closeBanner()">✕</button>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+//  ⚠️  여기에 본인 CLIENT_ID를 입력하세요
+//  Google Cloud Console → 사용자 인증 정보
+//  → OAuth 클라이언트 ID (웹 애플리케이션 유형)
+// ════════════════════════════════════════════
+const CLIENT_ID = '862832677326-hketl2er2r2ebosmmt52ssrkvg0658p5.apps.googleusercontent.com.apps.googleusercontent.com';
+const SCOPES    = 'https://www.googleapis.com/auth/calendar.readonly';
+const NOTIFY_MIN = 30;
+
+// ── 상태 ──
+let accessToken   = null;
+let events        = [];
+let notified      = new Set();
+let tokenClient   = null;
+let clockInterval = null;
+let checkInterval = null;
+let refreshTimer  = null;
+
+// ════════════════════════════════════════════
+// Google Identity Services 초기화
+// ════════════════════════════════════════════
+window.onload = () => {
+  updateClock();
+  clockInterval = setInterval(updateClock, 30000);
+
+  // 저장된 토큰 확인
+  const saved = sessionStorage.getItem('gcal_token');
+  if (saved) {
+    accessToken = saved;
+    showMain();
+    refreshEvents();
+    startAlarmLoop();
+  }
+
+  // GIS 로드 대기
+  waitForGIS();
+};
+
+function waitForGIS(retry = 0) {
+  if (typeof google !== 'undefined' && google.accounts) {
+    initGIS();
+  } else if (retry < 20) {
+    setTimeout(() => waitForGIS(retry + 1), 300);
+  }
+}
+
+function initGIS() {
+  if (CLIENT_ID === 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com') return;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (resp) => {
+      if (resp.error) { alert('로그인 실패: ' + resp.error); return; }
+      accessToken = resp.access_token;
+      sessionStorage.setItem('gcal_token', accessToken);
+      showMain();
+      refreshEvents();
+      startAlarmLoop();
+    }
+  });
+}
+
+function startSignIn() {
+  if (CLIENT_ID === 'YOUR_CLIENT_ID_HERE.apps.googleusercontent.com') {
+    alert('⚠️ CLIENT_ID를 먼저 설정해야 합니다.\nindex.html 파일의 CLIENT_ID 값을 수정하세요.');
+    return;
+  }
+  if (!tokenClient) { alert('Google 로그인 라이브러리 로드 중입니다. 잠시 후 다시 시도해주세요.'); return; }
+  tokenClient.requestAccessToken();
+}
+
+function signOut() {
+  if (accessToken) google.accounts.oauth2.revoke(accessToken, () => {});
+  accessToken = null;
+  sessionStorage.removeItem('gcal_token');
+  events = [];
+  notified.clear();
+  clearInterval(checkInterval);
+  clearTimeout(refreshTimer);
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('main-screen').style.display  = 'none';
+}
+
+// ════════════════════════════════════════════
+// UI 전환
+// ════════════════════════════════════════════
+function showMain() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display  = 'block';
+  updateDateBanner();
+}
+
+function updateClock() {
+  const now = new Date();
+  const h   = String(now.getHours()).padStart(2,'0');
+  const m   = String(now.getMinutes()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}`;
+  updateDateBanner();
+}
+
+function updateDateBanner() {
+  const now  = new Date();
+  const days = ['일','월','화','수','목','금','토'];
+  const d    = days[now.getDay()];
+  document.getElementById('date-full').textContent =
+    `${now.getMonth()+1}월 ${now.getDate()}일 (${d})`;
+  document.getElementById('status-bar').innerHTML =
+    `마지막 갱신: ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+}
+
+// ════════════════════════════════════════════
+// 캘린더 API
+// ════════════════════════════════════════════
+async function fetchCalendars() {
+  const r = await fetch(
+    'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!r.ok) throw new Error('캘린더 목록 오류');
+  const d = await r.json();
+  return (d.items || []).map(c => ({ id: c.id, name: c.summary }));
+}
+
+async function fetchEvents(calId, calName) {
+  const now   = new Date();
+  const start = new Date(now); start.setHours(0,0,0,0);
+  const end   = new Date(start); end.setDate(end.getDate() + 3);
+
+  const params = new URLSearchParams({
+    timeMin:      start.toISOString(),
+    timeMax:      end.toISOString(),
+    singleEvents: 'true',
+    orderBy:      'startTime',
+    maxResults:   '50',
+  });
+
+  const r = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?${params}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  if (!r.ok) return [];
+  const d = await r.json();
+  return (d.items || []).map(e => ({ ...e, _calName: calName }));
+}
+
+async function refreshEvents() {
+  if (!accessToken) return;
+  setStatus('<span class="spinner"></span>갱신 중...');
+  try {
+    const cals = await fetchCalendars();
+    const all  = [];
+    for (const c of cals) {
+      const evs = await fetchEvents(c.id, c.name);
+      all.push(...evs);
+    }
+    // 시작시간 정렬
+    all.sort((a,b) => {
+      const at = a.start?.dateTime || a.start?.date || '';
+      const bt = b.start?.dateTime || b.start?.date || '';
+      return at.localeCompare(bt);
+    });
+    events = all;
+    renderEvents();
+    setStatus(`✅ ${new Date().getHours()}:${String(new Date().getMinutes()).padStart(2,'0')} 갱신됨 · ${all.length}개 일정`);
+  } catch(e) {
+    setStatus('❌ 갱신 실패 — 다시 로그인 해주세요');
+    if (e.message.includes('401')) signOut();
+  }
+  // 5분 후 자동 갱신
+  clearTimeout(refreshTimer);
+  refreshTimer = setTimeout(refreshEvents, 5 * 60 * 1000);
+}
+
+function setStatus(html) {
+  document.getElementById('status-bar').innerHTML = html;
+}
+
+// ════════════════════════════════════════════
+// 렌더링
+// ════════════════════════════════════════════
+function renderEvents() {
+  const el  = document.getElementById('event-list');
+  const now = new Date();
+  const today    = new Date(now); today.setHours(0,0,0,0);
+  const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+  const dayAfter = new Date(today); dayAfter.setDate(dayAfter.getDate()+2);
+
+  const sections = [
+    { label:'오늘', date: today,    events:[] },
+    { label:'내일', date: tomorrow, events:[] },
+    { label: formatDate(dayAfter), date: dayAfter, events:[] },
+  ];
+
+  for (const ev of events) {
+    const startStr = ev.start?.dateTime || ev.start?.date;
+    if (!startStr) continue;
+    const evDate = new Date(startStr);
+    const evDay  = new Date(evDate); evDay.setHours(0,0,0,0);
+    for (const sec of sections) {
+      if (evDay.getTime() === sec.date.getTime()) {
+        sec.events.push(ev); break;
+      }
+    }
+  }
+
+  let html = '';
+  for (const sec of sections) {
+    html += `
+      <div class="section-header">
+        <div class="section-dot"></div>
+        <div class="section-label">${sec.label}</div>
+        <div class="section-count">${sec.events.length}건</div>
+      </div>`;
+    if (sec.events.length === 0) {
+      html += `<div class="empty">등록된 일정이 없습니다</div>`;
+    } else {
+      for (const ev of sec.events) {
+        html += renderCard(ev, now);
+      }
+    }
+  }
+  el.innerHTML = html;
+}
+
+function renderCard(ev, now) {
+  const title    = ev.summary || '제목 없음';
+  const loc      = ev.location || '';
+  const calName  = ev._calName || '';
+  const isAllDay = !ev.start?.dateTime;
+
+  let timeStr = '종일';
+  let urgency = '';
+  let badgeHtml = '';
+  let icon = '📌';
+
+  if (!isAllDay && ev.start?.dateTime) {
+    const start = new Date(ev.start.dateTime);
+    const end   = new Date(ev.end?.dateTime || ev.start.dateTime);
+    const minLeft = (start - now) / 60000;
+
+    const sh = String(start.getHours()).padStart(2,'0');
+    const sm = String(start.getMinutes()).padStart(2,'0');
+    const eh = String(end.getHours()).padStart(2,'0');
+    const em = String(end.getMinutes()).padStart(2,'0');
+    timeStr = `${sh}:${sm} ~ ${eh}:${em}`;
+
+    if (minLeft > 0 && minLeft <= 30) {
+      urgency = 'urgent'; icon = '🔴';
+      badgeHtml = `<span class="event-badge badge-urgent">⚠️ ${Math.ceil(minLeft)}분 후</span>`;
+    } else if (minLeft > 0 && minLeft <= 60) {
+      urgency = 'soon'; icon = '🟡';
+      badgeHtml = `<span class="event-badge badge-soon">⏰ ${Math.ceil(minLeft)}분 후</span>`;
+    } else if (minLeft <= 0 && now < end) {
+      urgency = 'ongoing'; icon = '🟢';
+      badgeHtml = `<span class="event-badge badge-ongoing">● 진행 중</span>`;
+    }
+  }
+
+  const locHtml = loc ? `<div class="event-loc">📍 ${escHtml(loc)}</div>` : '';
+  const calHtml = calName && calName !== 'ultravman@gmail.com'
+    ? `<div class="event-cal">📅 ${escHtml(calName)}</div>` : '';
+
+  return `
+    <div class="event-card ${urgency}">
+      <div class="event-icon">${icon}</div>
+      <div class="event-body">
+        <div class="event-title">${escHtml(title)}</div>
+        <div class="event-time">🕐 ${timeStr}</div>
+        ${badgeHtml}
+        ${locHtml}
+        ${calHtml}
+      </div>
+    </div>`;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatDate(d) {
+  return `${d.getMonth()+1}월 ${d.getDate()}일`;
+}
+
+// ════════════════════════════════════════════
+// 알람 루프
+// ════════════════════════════════════════════
+function startAlarmLoop() {
+  clearInterval(checkInterval);
+  checkInterval = setInterval(checkAlarms, 60 * 1000);
+  // 알림 권한 요청
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function checkAlarms() {
+  const now = new Date();
+  renderEvents(); // UI 실시간 갱신
+
+  for (const ev of events) {
+    const id = ev.id;
+    if (!ev.start?.dateTime) continue;
+    const start = new Date(ev.start.dateTime);
+    const minLeft = (start - now) / 60000;
+
+    if (minLeft >= NOTIFY_MIN - 1 && minLeft <= NOTIFY_MIN + 1) {
+      if (!notified.has(id + '_30')) {
+        notified.add(id + '_30');
+        fireAlarm(ev, Math.ceil(minLeft));
+      }
+    }
+    if (minLeft >= 4 && minLeft <= 6) {
+      if (!notified.has(id + '_5')) {
+        notified.add(id + '_5');
+        fireAlarm(ev, 5, true);
+      }
+    }
+  }
+}
+
+function fireAlarm(ev, minLeft, urgent=false) {
+  const title = ev.summary || '일정';
+  const start = new Date(ev.start.dateTime);
+  const timeStr = `${String(start.getHours()).padStart(2,'0')}:${String(start.getMinutes()).padStart(2,'0')}`;
+  const prefix  = urgent ? '🚨 5분 후' : `⏰ ${minLeft}분 후`;
+
+  // 화면 배너
+  document.getElementById('nb-title').textContent = `${prefix} 시작: ${title}`;
+  document.getElementById('nb-body').textContent  = `${timeStr} 시작 예정${ev.location ? ' · ' + ev.location : ''}`;
+  const banner = document.getElementById('notif-banner');
+  banner.style.display = 'block';
+  setTimeout(() => banner.style.display = 'none', 12000);
+
+  // OS 알림
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(`${prefix} 시작: ${title}`, {
+      body: `${timeStr}${ev.location ? ' · ' + ev.location : ''}`,
+      icon: 'icon-192.png',
+      badge:'icon-192.png',
+      vibrate: [200, 100, 200],
+      tag: ev.id + (urgent ? '_5' : '_30'),
+    });
+  }
+}
+
+function closeBanner() {
+  document.getElementById('notif-banner').style.display = 'none';
+}
+</script>
+</body>
+</html>
